@@ -1,0 +1,16 @@
+server:
+  type: default
+  rootPath: '/api/*'
+  applicationConnectors:
+    - type: http
+      port: 8080
+  adminConnectors:
+    - type: http
+      port: 8082
+logging:
+  level: INFO
+  appenders:
+    - type: file
+      currentLogFilename: /devel/luxoft/logeek.log
+      archive: false
+
