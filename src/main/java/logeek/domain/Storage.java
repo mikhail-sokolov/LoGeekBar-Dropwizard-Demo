@@ -3,47 +3,86 @@ package logeek.domain;
 import com.google.common.base.Optional;
 
 import javax.swing.text.html.Option;
+import javax.validation.constraints.Min;
+import java.util.Collection;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Created by msokolov on 9/29/2015.
  */
 public abstract class Storage<T> {
-    protected final int capacity;
-    protected final AtomicInteger itemsLeft;
-    private ConcurrentLinkedQueue<T> ordersQueue;
+    private ConcurrentLinkedQueue<T> storage;
+    private Supplier<T> newItem;
 
-    public Storage(int capacity) {
-        this.capacity = capacity;
-        this.itemsLeft = new AtomicInteger(capacity);
-        ordersQueue = new ConcurrentLinkedQueue<>();
+    protected Storage(Collection<T> initial, Supplier<T> newItemSupplier) {
+        storage = new ConcurrentLinkedQueue<>(initial);
+        newItem = newItemSupplier;
     }
 
-    //synch
     public Optional<T> get() {
-        if (!isEmpty()) {
-            itemsLeft.compareAndSet()decrementAndGet();
-            return Optional.of(create());
-            Optional.fromNullable(ordersQueue.poll());
-        } else {
-            return Optional.absent();
-        }
+        return Optional.fromNullable(storage.poll());
     }
 
-    public abstract T create();
-
-    public int capacity() {
-        return capacity;
+    public void add() {
+        storage.add(newItem.get());
     }
 
     public int itemsLeft() {
-        return itemsLeft.get();
+        return storage.size();
     }
 
     public boolean isEmpty() {
-        return itemsLeft.get() == 0;
+        return storage.isEmpty();
     }
 
     public abstract String getItemName();
+
+    public static class Factory {
+        @Min(value = 1)
+        private int beerInit;
+        @Min(value = 1)
+        private int pizzaInit;
+
+        public int getBeerInit() {
+            return beerInit;
+        }
+
+        public void setBeerInit(int beerInit) {
+            this.beerInit = beerInit;
+        }
+
+        public int getPizzaInit() {
+            return pizzaInit;
+        }
+
+        public void setPizzaInit(int pizzaInit) {
+            this.pizzaInit = pizzaInit;
+        }
+
+        public Storage beerStorage() {
+            return new Storage(supplies(beerInit, Beer::new), Beer::new) {
+                @Override
+                public String getItemName() {
+                    return null;
+                }
+            };
+        }
+
+        public Storage pizzaStorage() {
+            return new Storage(supplies(pizzaInit, Pizza::new), Pizza::new) {
+                @Override
+                public String getItemName() {
+                    return null;
+                }
+            };
+        }
+
+        private <T> Collection<T> supplies(int amount, Supplier<T> supplier) {
+            return IntStream.rangeClosed(1, amount).mapToObj(i -> supplier.get()).collect(Collectors.toList());
+        }
+    }
 }

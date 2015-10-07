@@ -1,5 +1,6 @@
 package logeek.resource;
 
+import com.codahale.metrics.annotation.Timed;
 import io.dropwizard.jersey.params.IntParam;
 import logeek.domain.*;
 
@@ -20,22 +21,31 @@ public class OrderResource {
         this.orderExecutor = orderExecutor;
     }
 
-    @Path("/")
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
+    @Timed
     public OrderAck makeOrder(@Valid Order order) {
         return orderExecutor.proccess(order);
     }
 
     @Path("/total/{id}")
     @GET
+    @Timed
     public TotalOrder totalOrderById(@PathParam("id")IntParam id) {
         return orderExecutor.totalOrderById(id.get());
     }
 
     @Path("/total")
     @GET
+    @Timed
     public List<TotalOrder> totalOrder() {
         return orderExecutor.totalOrder();
+    }
+
+    @Path("/top")
+    @GET
+    @Timed
+    public List<Consumer> top() {
+        return orderExecutor.top();
     }
 }

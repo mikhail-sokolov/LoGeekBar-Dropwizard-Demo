@@ -1,8 +1,6 @@
 package logeek.domain;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -12,10 +10,10 @@ import java.util.stream.Stream;
  */
 public class OrderExecutor {
     private ConcurrentLinkedQueue<Order> ordersQueue;
-    private BeerStorage beerStorage;
-    private PizzaStorage pizzaStorage;
+    private Storage beerStorage;
+    private Storage pizzaStorage;
 
-    public OrderExecutor(ConcurrentLinkedQueue<Order> ordersQueue, BeerStorage beerStorage, PizzaStorage pizzaStorage) {
+    public OrderExecutor(ConcurrentLinkedQueue<Order> ordersQueue, Storage beerStorage, Storage pizzaStorage) {
         this.ordersQueue = ordersQueue;
         this.beerStorage = beerStorage;
         this.pizzaStorage = pizzaStorage;
@@ -26,6 +24,7 @@ public class OrderExecutor {
             case BEER: beerStorage.get();
                 break;
             case PIZZA: pizzaStorage.get();
+                break;
             default:
                 throw new IllegalArgumentException("Unknown menu item");
         }
@@ -34,26 +33,49 @@ public class OrderExecutor {
     }
 
     public TotalOrder totalOrderById(int id) {
-        Stream<Order>ordersById = ordersQueue.stream().filter(o -> o.getId() == id);
+        Stream<Order> ordersById = ordersQueue.stream().filter(o -> o.getId() == id);
+        return createTotalOrder(id, ordersById);
+    }
+
+    private TotalOrder createTotalOrder(int id, Stream<Order> ordersById) {
+        Map<MenuItem, List<Order>> groupByMenuItem = groupByMenuItem(ordersById);
         return new TotalOrder(
                 id,
-                ordersById.filter(o -> o.getMenuItem().equals(MenuItem.BEER)).count(),
-                ordersById.filter(o -> o.getMenuItem().equals(MenuItem.PIZZA)).count()
+                amountOf(MenuItem.BEER, groupByMenuItem),
+                amountOf(MenuItem.PIZZA, groupByMenuItem)
         );
     }
 
+    private Map<MenuItem, List<Order>> groupByMenuItem(Stream<Order> orders) {
+        return orders.collect(Collectors.groupingBy(Order::getMenuItem));
+    }
+
+    private int amountOf(MenuItem menuItem, Map<MenuItem, List<Order>> ordersByMenuItem) {
+        return ordersByMenuItem.getOrDefault(menuItem, Collections.emptyList()).size();
+    }
 
     public List<TotalOrder> totalOrder() {
         Map<Integer, List<Order>> ordersById = ordersQueue.stream().collect(Collectors.groupingBy(Order::getId));
-        return ordersById.entrySet().stream().map(
-                entry -> {
-                    Map<MenuItem, List<Order>> byMenuItem = entry.getValue().stream().collect(Collectors.groupingBy(Order::getMenuItem));
-                    return new TotalOrder(
-                        entry.getKey(),
-                        byMenuItem.getOrDefault(MenuItem.BEER, Collections.emptyList()).size(),
-                        byMenuItem.getOrDefault(MenuItem.PIZZA, Collections.emptyList()).size()
-                    );
-                }
-        ).collect(Collectors.toList());
+        return ordersById.entrySet().stream().
+                map(entry -> createTotalOrder(entry.getKey(), entry.getValue().stream())).
+                collect(Collectors.toList());
+    }
+
+    public List<Consumer> top() {
+        List<Consumer> topConsumers = new ArrayList<>(2);
+        topConsumer(MenuItem.BEER).ifPresent(topConsumers::add);
+        topConsumer(MenuItem.PIZZA).ifPresent(topConsumers::add);
+        return topConsumers;
+    }
+
+    private Optional<Consumer> topConsumer(MenuItem item) {
+        return ordersQueue.stream().
+                filter(order -> order.getMenuItem().equals(item)).
+                collect(Collectors.groupingBy(Order::getId)).
+                entrySet().stream().
+                map(entry -> new Consumer(entry.getKey(), item.name(), entry.getValue().size())).
+                sorted((c1, c2) -> c2.getAmount() - c1.getAmount()).
+                //peek(consumer -> System.out.println(consumer.getAmount())).
+                findFirst();
     }
 }
